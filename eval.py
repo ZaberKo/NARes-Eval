@@ -6,9 +6,10 @@ import time
 import os
 import torch
 import numpy as np
-from base_attackers import Evaluator
 from torch.autograd import Variable
 from torchprofile import profile_macs
+
+from base_attackers import Evaluator
 from auto_attack.autoattack import AutoAttack
 mlconfig.register(dataset.DatasetGenerator)
 
