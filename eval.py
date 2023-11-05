@@ -44,7 +44,7 @@ config['dataset']['eval_batch_size'] = 100
 
 # init logger
 log_file_path = os.path.join(args.config_path, args.version)
-logger = util.setup_logger(name=args.version, log_file=log_file_path + '_eval@fgsm-pgd20-cw40.log')
+logger = util.setup_logger(name=args.version, log_file=log_file_path + '_eval_{}-{}.log'.format(args.norm, args.attack_choice))
 
 # set the seed
 torch.manual_seed(args.seed)
