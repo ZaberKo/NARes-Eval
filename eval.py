@@ -6,159 +6,151 @@ import time
 import os
 import torch
 import numpy as np
-from torch.autograd import Variable
 from torchprofile import profile_macs
+from pathlib import Path
+
+from collections import defaultdict
+import tqdm
+
+# used to register the models
+import models
 
 from base_attackers import Evaluator
 from auto_attack.autoattack import AutoAttack
 mlconfig.register(dataset.DatasetGenerator)
 
-# for instance python ./eval_robustness.py --config-path /research/hal-huangs88/codes/Robust_NASBench/ablation_dir/nasbench/small/r1 \
-# --load-best-model  --version arch_001 --seed 0
 
-parser = argparse.ArgumentParser(description='Adversarial Attack Evaluate: Linf (L2)-version of FGSM, PGD20, CW40, AutoAttack with epsilon@8/255; L2 ')
-parser.add_argument('--seed', type=int, default=0)
-parser.add_argument('--version', type=str, default="DARTS_Search")
-parser.add_argument('--config-path', type=str, default='configs')
-parser.add_argument('--attack-choice', type=str, default='Base', choices=['Base', "AA"], help="Base: FGSM, PGD, CW; Or, AA")
-parser.add_argument('--norm', type=str, default='Linf', choices=["L2", "Linf"])
-parser.add_argument('--load-best-model', action='store_true', default=False)
-parser.add_argument('--epsilon', default=8, type=float, help='perturbation')
-parser.add_argument('--step_size', default=0.8, type=float, help='perturb step size, for pgd etc., step size is 10x smaller than epsilon')
-# Autoattack augments 
-parser.add_argument('--aa-type', type=str, default='Standard', choices=["Compact", "Standard"], 
-                    help='Compact: only includes two attacker which is almost closed to the Standard version in most case, and it is cheaper; Standard: Common used')
+def setup_args():
+    parser = argparse.ArgumentParser(
+        description='Adversarial Attack Evaluate: Linf/L2-version of FGSM, PGD20, CW40, AutoAttack with epsilon@8/255;')
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--model', type=str, default="arch_001")
+    parser.add_argument('--model-path', type=str, default='configs')
+    parser.add_argument('--attack-choice', type=str, default='Base',
+                        choices=['Base', "AA"], help="Base: FGSM, PGD, CW; Or, AA")
+    parser.add_argument('--norm', type=str, default='Linf',
+                        choices=["L2", "Linf"])
+    parser.add_argument('--load-best-model',
+                        action='store_true', default=False)
+    parser.add_argument('--epsilon', default=8,
+                        type=float, help='perturbation')
+    parser.add_argument('--step_size', default=0.8, type=float,
+                        help='perturb step size, for pgd etc., step size is 10x smaller than epsilon')
+    # Autoattack augments
+    parser.add_argument('--aa-type', type=str, default='Standard', choices=["Compact", "Standard"],
+                        help='Compact: only includes two attacker which is almost closed to the Standard version in most case, and it is cheaper; Standard: Common used')
+    parser.add_argument('--progress-bar', action='store_true')
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
-if args.epsilon > 1:
-    args.epsilon = args.epsilon / 255
-    args.step_size = args.step_size / 255
-
-# get the corresponding directory 
-checkpoint_path = "{}/checkpoints".format(args.config_path)
-checkpoint_path_file = os.path.join(checkpoint_path, args.version)
-config_file = os.path.join(args.config_path, args.version) + '.yaml'
-config = mlconfig.load(config_file)
-config['dataset']['valset'] = False     # Must set to False, since we want to evaluate on test instead of val set
-config['dataset']['eval_batch_size'] = 100
-
-# init logger
-log_file_path = os.path.join(args.config_path, args.version)
-logger = util.setup_logger(name=args.version, log_file=log_file_path + '_eval_{}-{}.log'.format(args.norm, args.attack_choice))
-
-# set the seed
-torch.manual_seed(args.seed)
-np.random.seed(args.seed)
-
-if torch.cuda.is_available():
-    torch.backends.cudnn.enabled = True
-    torch.backends.cudnn.benchmark = True
-    device = torch.device('cuda')
-    device_list = [torch.cuda.get_device_name(i) for i in range(0, torch.cuda.device_count())]
-    logger.info("GPU List: %s" % (device_list))
-else:
-    device = torch.device('cpu')
-args.device= device
+    return args
 
 
-def l2_eval(data_loader, model, evaluator, log=True):
-    natural_count, fgsm_count, pgd_count, cw_count, total, stable_count = 0, 0, 0, 0, 0, 0
-    loss_meters = util.AverageMeter()
-    lip_meters = util.AverageMeter()
+def get_ratio(metric: util.AverageMeter):
+    return f'{int(metric.sum)}/{int(metric.count)}'
+
+
+def l2_eval(data_loader, model, evaluator, progress_bar=False):
+    metrics = defaultdict(util.AverageMeter)
     model.eval()
-    for i, (images, labels) in enumerate(data_loader["test_dataset"]):
+
+    if progress_bar:
+        _data_loader = tqdm.tqdm(data_loader["test_dataset"])
+    else:
+        _data_loader = data_loader["test_dataset"]
+
+    for i, (images, labels) in enumerate(_data_loader):
         images, labels = images.to(device), labels.to(device)
-        images, labels = Variable(images, requires_grad=True), Variable(labels)
-        total += images.size(0)
+        bs = images.size(0)
+
+        predict_clean, natural_acc = evaluator.clean_acc(images, labels)
+        metrics['natural_acc'].update(natural_acc, n=bs)
 
         # L2-PGD attacker with 20 steps
-        pgd = evaluator._l2pgd_whitebox(images, labels, num_steps=20, step_size=args.step_size)
-        acc, acc_pgd, loss, stable, X_pgd = pgd
-        natural_count += acc
-        pgd_count += acc_pgd
-        stable_count += stable
-        local_lip = util.local_lip(model, images, X_pgd).item()
-        lip_meters.update(local_lip)
-        loss_meters.update(loss)
+        acc_pgd, stable_pgd, adv_imgs_pgd = evaluator.l2pgd_whitebox(
+            images, labels, predict_clean)
+        metrics['pgd_acc'].update(acc_pgd, n=bs)
+        metrics['pgd_stable'].update(stable_pgd, n=bs)
+        local_lip = util.local_lip(model, images, adv_imgs_pgd).item()
+        metrics['pgd_lip'].update(local_lip, n=bs)
 
         # L2-CW attacker with 40 steps
-        cw = evaluator._l2pgd_cw_whitebox(images, labels, num_steps=40, step_size=args.step_size)
-        _, acc_cw, _, _, _ = cw
-        cw_count += acc_cw
+        acc_cw, stable_cw, _ = evaluator.l2cw_whitebox(
+            images, labels, predict_clean)
+        metrics['cw_acc'].update(acc_cw, n=bs)
+        metrics['cw_stable'].update(stable_cw, n=bs)
 
-        if log:
-            payload = 'LIP: %.4f\tStable Count: %d\tNatural Acc: %.2f\tPGD Acc: %.2f\tCW Acc: %.2f' % (
-                local_lip, stable_count,  (natural_count / total) * 100, (pgd_count / total) * 100, (cw_count / total) * 100)
-            logger.info(payload)
+        payload = f'Nature Acc: {metrics["natural_acc"].percent:.2f} PGD Acc: {metrics["pgd_acc"].percent:.2f} PGD LIP: {local_lip:.4f} CW Acc: {metrics["cw_acc"].percent:.2f}'
+        logger.info(payload)
+        if progress_bar:
+            _data_loader.set_description(payload)
 
-    natural_acc = (natural_count / total) * 100
-    fgsm_acc = 0
-    pgd_acc = (pgd_count / total) * 100
-    cw_acc = (cw_count / total) * 100
-    stable_acc = (stable_count / total) * 100 
-    payload = 'Natural Correct Count: %d/%d, Acc: %.2f ' % (natural_count, total, natural_acc)
-    logger.info(payload)
-    payload = 'PGD with 20 steps Correct Count: %d/%d, Acc: %.2f ' % (pgd_count, total, pgd_acc)
-    logger.info(payload)
-    payload = 'CW with 40 steps Correct Count: %d/%d, Acc: %.2f ' % (pgd_count, total, cw_acc)
-    logger.info(payload)
-    payload = 'PGD with 20 steps Loss Avg: %.2f; LIP Avg: %.4f; Stable Acc: %.2f' % (loss_meters.avg, lip_meters.avg, stable_acc)
-    logger.info(payload)
-    return natural_acc, fgsm_acc, pgd_acc, cw_acc, stable_acc, lip_meters.avg
+    logger.info(
+        f'Natural Correct Count: {get_ratio(metrics["natural_acc"])}, Acc: {metrics["natural_acc"].percent:.2f}'
+    )
+    logger.info(
+        f'PGD with 20 steps Correct Count: {get_ratio(metrics["pgd_acc"])}, Acc: {metrics["pgd_acc"].percent:.2f}, Stable: {metrics["pgd_stable"].percent:.2f} LIP: {metrics["pgd_lip"].avg:.4f}'
+    )
+    logger.info(
+        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["natural_acc"].percent:.2f}'
+    )
+    return metrics
 
 
-def linf_eval(data_loader, model, evaluator, log=True):
-    natural_count, fgsm_count, pgd_count, cw_count, total, stable_count = 0, 0, 0, 0, 0, 0
-    loss_meters = util.AverageMeter()
-    lip_meters = util.AverageMeter()
+def linf_eval(data_loader, model, evaluator, progress_bar=False):
+    metrics = defaultdict(util.AverageMeter)
     model.eval()
-    for i, (images, labels) in enumerate(data_loader["test_dataset"]):
+    if progress_bar:
+        _data_loader = tqdm.tqdm(data_loader["test_dataset"])
+    else:
+        _data_loader = data_loader["test_dataset"]
+
+    for i, (images, labels) in enumerate(_data_loader):
         images, labels = images.to(device), labels.to(device)
-        images, labels = Variable(images, requires_grad=True), Variable(labels)
-        total += images.size(0)
+        bs = images.size(0)
+
+        predict_clean, natural_acc = evaluator.clean_acc(images, labels)
+        metrics['natural_acc'].update(natural_acc, n=bs)
 
         # Linf-FGSM with 1 step. For FGSM, where only one step, usually, step size = epsilon
-        fgsm = evaluator._fgsm_whitebox(images, labels, num_steps=1, step_size=args.epsilon)
-        _, acc_fgsm, _, _, _ = fgsm
-        fgsm_count += acc_fgsm
+        acc_fgsm, stable_fgsm, _ = evaluator.fgsm_whitebox(
+            images, labels, predict_clean)
+        metrics['fgsm_acc'].update(acc_fgsm, n=bs)
+        metrics['fgsm_stable'].update(stable_fgsm, n=bs)
 
         # Linf-PGD attacker with 20 steps
-        pgd = evaluator._pgd_whitebox(images, labels, num_steps=20, step_size=args.step_size)
-        acc, acc_pgd, loss, stable, X_pgd = pgd
-        natural_count += acc
-        pgd_count += acc_pgd
-        stable_count += stable
-        local_lip = util.local_lip(model, images, X_pgd).item()
-        lip_meters.update(local_lip)
-        loss_meters.update(loss)
+        acc_pgd, stable_pgd, adv_imgs_pgd = evaluator.pgd_whitebox(
+            images, labels, predict_clean)
+        metrics['pgd_acc'].update(acc_pgd, n=bs)
+        metrics['pgd_stable'].update(stable_pgd, n=bs)
+        local_lip = util.local_lip(model, images, adv_imgs_pgd).item()
+        metrics['pgd_lip'].update(local_lip, n=bs)
 
         # Linf-CW attacker with 40 steps
-        cw = evaluator._pgd_whitebox(model, images, labels, num_steps=40, step_size=args.step_size)
-        _, acc_cw, _, _, _ = cw
-        cw_count += acc_cw
+        acc_cw, stable_cw, _ = evaluator.cw_whitebox(
+            images, labels, predict_clean)
+        metrics['cw_acc'].update(acc_cw, n=bs)
+        metrics['cw_stable'].update(stable_cw, n=bs)
 
-        if log:
-            payload = 'LIP: %.4f\tStable Count: %d\tNatural Acc: %.2f\tFGSM Acc: %.2f\tPGD Acc: %.2f\tCW Acc: %.2f' % (
-                local_lip, stable_count,  (natural_count / total) * 100, (fgsm_count / total) * 100, (pgd_count / total) * 100, (cw_count / total) * 100)
-            logger.info(payload)
+        payload = f'Nature Acc: {metrics["natural_acc"].percent:.2f} FGSM Acc: {metrics["fgsm_acc"].percent:.2f} PGD Acc: {metrics["pgd_acc"].percent:.2f} PGD LIP: {local_lip:.4f} CW Acc: {metrics["cw_acc"].percent:.2f}'
+        logger.info(payload)
+        if progress_bar:
+            _data_loader.set_description(payload)
 
-    natural_acc = (natural_count / total) * 100
-    fgsm_acc = (fgsm_count / total) * 100
-    pgd_acc = (pgd_count / total) * 100
-    cw_acc = (cw_count / total) * 100
-    stable_acc = (stable_count / total) * 100 
-    payload = 'Natural Correct Count: %d/%d, Acc: %.2f ' % (natural_count, total, natural_acc)
-    logger.info(payload)
-    payload = 'FGSM with 1 step Correct Count: %d/%d, Acc: %.2f ' % (fgsm_count, total, fgsm_acc)
-    logger.info(payload)
-    payload = 'PGD with 20 steps Correct Count: %d/%d, Acc: %.2f ' % (pgd_count, total, pgd_acc)
-    logger.info(payload)
-    payload = 'CW with 40 steps Correct Count: %d/%d, Acc: %.2f ' % (pgd_count, total, cw_acc)
-    logger.info(payload)
-    payload = 'PGD with 20 steps Loss Avg: %.2f; LIP Avg: %.4f; Stable Acc: %.2f' % (loss_meters.avg, lip_meters.avg, stable_acc)
-    logger.info(payload)
-    return natural_acc, fgsm_acc, pgd_acc, cw_acc, stable_acc, lip_meters.avg
+    logger.info(
+        f'Natural Correct Count: {get_ratio(metrics["natural_acc"])}, Acc: {metrics["natural_acc"].percent:.2f}'
+    )
+    logger.info(
+        f'FGSM with 1 step Correct Count: {get_ratio(metrics["fgsm_acc"])}, Acc: {metrics["fgsm_acc"].percent:.2f}, Stable: {metrics["fgsm_stable"].percent:.2f}'
+    )
+    logger.info(
+        f'PGD with 20 steps Correct Count: {get_ratio(metrics["pgd_acc"])}, Acc: {metrics["pgd_acc"].percent:.2f}, Stable: {metrics["pgd_stable"].percent:.2f} LIP: {metrics["pgd_lip"].avg:.4f}'
+    )
+    logger.info(
+        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["natural_acc"].percent:.2f}'
+    )
+
+    return metrics
 
 
 def main():
@@ -166,7 +158,7 @@ def main():
     model = config.model().to(args.device)
     logger.info(model)
 
-    # Setup ENV
+    # Setup train_statedict
     data_loader = config.dataset().getDataLoader()
     profile_inputs = (torch.randn([1, 3, 32, 32]).to(args.device),)
     flops = profile_macs(model, profile_inputs) / 1e6
@@ -174,20 +166,22 @@ def main():
 
     config.set_immutable()
     for key in config:
-        logger.info("%s: %s" % (key, config[key]))
-    logger.info("param size = %fMB", params)
-    logger.info("flops: %.4fM" % flops)
-    logger.info("PyTorch Version: %s" % (torch.__version__))
+        logger.info(f"{key}: {config[key]}")
+    logger.info(f"param size = {params}MB")
+    logger.info(f"flops: {flops:.4f}M")
+    logger.info(f"PyTorch Version: {torch.__version__}")
     if torch.cuda.is_available():
-        device_list = [torch.cuda.get_device_name(i) for i in range(0, torch.cuda.device_count())]
-        logger.info("GPU List: %s" % (device_list))
+        device_list = [torch.cuda.get_device_name(
+            i) for i in range(0, torch.cuda.device_count())]
+        logger.info(f"GPU List: {device_list}")
 
     # load trained weights
-    filename = checkpoint_path_file + '_best.pth' if args.load_best_model else checkpoint_path_file + '.pth'
-    checkpoint = util.load_model(filename=filename, model=model, optimizer=None, alpha_optimizer=None, scheduler=None)
-    ENV = checkpoint['ENV']
-    ENV['params': params, 'flops': flops]
-    logger.info("File %s loaded!" % (filename))
+
+    checkpoint = util.load_model(
+        filename=checkpoint_file, model=model, optimizer=None, alpha_optimizer=None, scheduler=None)
+    train_statedict = checkpoint['ENV']
+    train_statedict.update({'flops': flops, 'params': params})
+    logger.info(f"File {checkpoint_file} loaded!")
 
     for param in model.parameters():
         param.requires_grad = False
@@ -196,18 +190,22 @@ def main():
 
     # Base attackers: FGSM, PGD, CW
     if args.attack_choice == 'Base':
-        evaluator = Evaluator(model, data_loader, logger, config, random_start=True, epsilon=args.epsilon, device=args.device)
-        if args.norm == 'Linf':
-            natural_acc, fgsm_acc, pgd_acc, cw_acc, stable_acc, lip = linf_eval(data_loader, model, evaluator)
-        else:
-            natural_acc, fgsm_acc, pgd_acc, cw_acc, stable_acc, lip = l2_eval(data_loader, model, evaluator)
+        evaluator = Evaluator(model, args.epsilon, args.step_size,
+                              pgd_steps=20, cw_steps=40, pgdl2_steps=20, cwl2_steps=40)
 
-        ENV['{}_natural_acc'.format(args.norm)] = natural_acc
-        ENV['{}_fgsm_acc'.format(args.norm)] = fgsm_acc
-        ENV['{}_pgd20_acc'.format(args.norm)] = pgd_acc
-        ENV['{}_cw40_acc'.format(args.norm)] = cw_acc
-        ENV['{}_pgd20_stable'.format(args.norm)] = stable_acc
-        ENV['{}_pgd20_lip'.format(args.norm)] = lip
+        if args.norm == 'Linf':
+            result_dict = linf_eval(
+                data_loader, model, evaluator, args.progress_bar)
+            train_statedict[f'{args.norm}_fgsm_acc'] = result_dict['fgsm_acc'].percent
+        else:
+            result_dict = l2_eval(
+                data_loader, model, evaluator, args.progress_bar)
+
+        train_statedict[f'{args.norm}_natural_acc'] = result_dict['natural_acc'].percent
+        train_statedict[f'{args.norm}_pgd20_acc'] = result_dict['pgd_acc'].percent
+        train_statedict[f'{args.norm}_cw40_acc'] = result_dict['cw_acc'].percent
+        train_statedict[f'{args.norm}_pgd20_stable'] = result_dict['pgd_stable_acc'].percent
+        train_statedict[f'{args.norm}_pgd20_lip'] = result_dict['pgd_lip'].avg
 
     else:
         # reshape dataloader for adapted to AA
@@ -216,29 +214,76 @@ def main():
         y_test = [y for (x, y) in data_loader['test_dataset']]
         y_test = torch.cat(y_test, dim=0)
 
-        adversary = AutoAttack(model, norm=args.norm, eps=args.epsilon, logger=logger, verbose=True, device=args.device)
-        logger.info('=' * 20 + 'AA with {} Attack Eval'.format(args.norm) + '=' * 20)
-        if args.aa_type == 'Compact':       # only evaluate two attacker instead of four when use standard (default)
+        adversary = AutoAttack(model, norm=args.norm, eps=args.epsilon,
+                               logger=logger, verbose=True, device=args.device)
+        logger.info(
+            '=' * 20 + 'AA with {} Attack Eval'.format(args.norm) + '=' * 20)
+        # only evaluate two attacker instead of four when use standard (default)
+        if args.aa_type == 'Compact':
             adversary.attacks_to_run = ['apgd-ce', 'apgd-t']
-        print("  ### Evaluate {}-AA attackers ###  ".format(adversary.attacks_to_run))
-        adv_imgs, robust_accuracy = adversary.run_standard_evaluation(x_test, y_test, bs=config.dataset.eval_batch_size)
+        print(f"  ### Evaluate {adversary.attacks_to_run}-AA attackers ###  ")
+        adv_imgs, robust_accuracy = adversary.run_standard_evaluation(
+            x_test, y_test, bs=config.dataset.eval_batch_size)
 
         robust_accuracy = robust_accuracy * 100
-        logger.info('%s-AA Accuracy: %.2f' % (args.norm, robust_accuracy))
-        ENV['{}_aa_attack'.format(args.norm)] = robust_accuracy
+        logger.info(f'{args.norm}-AA Acc: {robust_accuracy:.2f}')
+        train_statedict[f'{args.norm}_aa_attack'] = robust_accuracy
 
     # print evaluation results
-    logger(ENV)
-
-    return
+    logger.info(train_statedict)
 
 
 if __name__ == '__main__':
+    args = setup_args()
+    if args.epsilon > 1:
+        args.epsilon = args.epsilon / 255
+        args.step_size = args.step_size / 255
+
+    # get the corresponding directory
+    model_path = Path(args.model_path)/args.model
+
+    checkpoint_path = model_path/'checkpoints'
+
+    if args.load_best_model:
+        model_name = f'{args.model}_best.pth'
+    else:
+        model_name = f'{args.model}.pth'
+    checkpoint_file = checkpoint_path/model_name
+
+    config_file = model_path/f"{args.model}.yaml"
+    config = mlconfig.load(str(config_file))
+    # Must set to False, since we want to evaluate on test instead of val set
+    config.dataset.valset = False
+    config.dataset.eval_batch_size = 100
+
+    # init logger
+    log_file_path = model_path / \
+        f'{args.model}_eval_{args.norm}_{args.attack_choice}.log'
+    logger = util.setup_logger(name=args.model, 
+                               log_file=str(log_file_path),
+                               console=not args.progress_bar)
+
+    # set the seed
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+
+    if torch.cuda.is_available():
+        torch.backends.cudnn.enabled = True
+        torch.backends.cudnn.benchmark = True
+        device = torch.device('cuda')
+        device_list = [torch.cuda.get_device_name(
+            i) for i in range(0, torch.cuda.device_count())]
+        logger.info(f"GPU List: {device_list}")
+    else:
+        device = torch.device('cpu')
+    args.device = device
+
     for arg in vars(args):
-        logger.info("%s: %s" % (arg, getattr(args, arg)))
+        logger.info(f"{arg}: {getattr(args, arg)}")
+
     start = time.time()
     main()
     end = time.time()
-    cost = (end - start) / 86400
-    payload = "Running Cost %.2f Days" % cost
+    eval_time = (end - start) / 86400
+    payload = f"Running Cost {eval_time:.2f} Days"
     logger.info(payload)

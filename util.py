@@ -3,18 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import os
-import math
-import json
-from torch.autograd import Variable
-
-if torch.cuda.is_available():
-    torch.backends.cudnn.enabled = True
-    torch.backends.cudnn.benchmark = True
-    torch.backends.cudnn.deterministic = True
-    device = torch.device('cuda')
-else:
-    device = torch.device('cpu')
 
 
 def local_lip(model, x, xp, top_norm=1, btm_norm=float('inf'), reduction='mean'):
@@ -38,34 +26,24 @@ def local_lip(model, x, xp, top_norm=1, btm_norm=float('inf'), reduction='mean')
         raise ValueError("Not supported reduction")
 
 
-def fosc(model, x, x_adv, labels, epsilon):
-    batch_size = x_adv.shape[0]
 
-    model.zero_grad()
-    x_adv = Variable(x_adv, requires_grad=True)
-    adv_logits = model(x_adv)
-    loss = F.cross_entropy(adv_logits, labels, reduction='none')
-    loss.sum().backward()
-    grad = x_adv.grad.data
-
-    grad_flatten = grad.view(grad.shape[0], -1)
-    grad_norm = torch.norm(grad_flatten, 1, dim=1)
-    x_diff = (x_adv.detach() - x).view(batch_size, -1)
-    fosc_value = epsilon * grad_norm - (grad_flatten * x_diff).sum(dim=1)
-    return fosc_value.view(batch_size)
-
-
-def setup_logger(name, log_file, level=logging.INFO):
+def setup_logger(name, log_file=None, level=logging.INFO, console=True):
     """To setup as many loggers as you want"""
-    formatter = logging.Formatter('%(asctime)s %(message)s')
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(formatter)
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+
+    formatter = logging.Formatter('%(asctime)s %(message)s')
+
+    if console:
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
+    if log_file is not None:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
     return logger
 
 
@@ -118,7 +96,7 @@ def save_model(filename, epoch, model, optimizer, alpha_optimizer, scheduler, sa
 
 def load_model(filename, model, optimizer, alpha_optimizer,  scheduler, **kwargs):
     # Load Torch State Dict
-    checkpoints = torch.load(filename, map_location=device)
+    checkpoints = torch.load(filename, map_location='cpu')
     model.load_state_dict(checkpoints['model_state_dict'], strict=False)
     if optimizer is not None and checkpoints['optimizer_state_dict'] is not None:
         optimizer.load_state_dict(checkpoints['optimizer_state_dict'])
@@ -132,11 +110,6 @@ def load_model(filename, model, optimizer, alpha_optimizer,  scheduler, **kwargs
 def count_parameters_in_MB(model):
     return sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary_head" not in name)/1e6
 
-
-def build_dirs(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
-    return
 
 
 class AverageMeter(object):
@@ -159,68 +132,9 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
         self.max = max(self.max, val)
 
-
-def freeze_vars(model, var_name, freeze_bn=False):
-    """
-    freeze vars. If freeze_bn then only freeze batch_norm params.
-    """
-
-    assert var_name in ["weight", "bias", "popup_scores"]
-    for i, v in model.named_modules():
-        if hasattr(v, var_name):
-            if not isinstance(v, (nn.BatchNorm2d, nn.BatchNorm2d)) or freeze_bn:
-                if getattr(v, var_name) is not None:
-                    getattr(v, var_name).requires_grad = False
+    @property
+    def percent(self):
+        return self.avg * 100
 
 
-def unfreeze_vars(model, var_name):
-    assert var_name in ["weight", "bias", "popup_scores"]
-    for i, v in model.named_modules():
-        if hasattr(v, var_name):
-            if getattr(v, var_name) is not None:
-                getattr(v, var_name).requires_grad = True
 
-
-def initialize_scaled_score(model):
-    print(
-        "Initialization relevance score proportional to weight magnitudes (OVERWRITING SOURCE NET SCORES)"
-    )
-    for m in model.modules():
-        if hasattr(m, "popup_scores"):
-            n = nn.init._calculate_correct_fan(m.popup_scores, "fan_in")
-            # Close to kaiming unifrom init
-            m.popup_scores.data = (
-                math.sqrt(6 / n) * m.weight.data / torch.max(torch.abs(m.weight.data))
-            )
-
-
-def onehot(size, target):
-    vec = torch.zeros(size, dtype=torch.float32)
-    vec[target] = 1.
-    return vec
-
-
-def rand_bbox(size, lam):
-    if len(size) == 4:
-        W = size[2]
-        H = size[3]
-    elif len(size) == 3:
-        W = size[1]
-        H = size[2]
-    else:
-        raise Exception
-
-    cut_rat = np.sqrt(1. - lam)
-    cut_w = np.int(W * cut_rat)
-    cut_h = np.int(H * cut_rat)
-
-    # uniform
-    cx = np.random.randint(W)
-    cy = np.random.randint(H)
-
-    bbx1 = np.clip(cx - cut_w // 2, 0, W)
-    bby1 = np.clip(cy - cut_h // 2, 0, H)
-    bbx2 = np.clip(cx + cut_w // 2, 0, W)
-    bby2 = np.clip(cy + cut_h // 2, 0, H)
-
-    return bbx1, bby1, bbx2, bby2
