@@ -12,8 +12,11 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--model-path", "./models_home", "--load-best-model", "--model", "arch_170",
-                "--progress-bar"
+                "--model-path", "./models_home", 
+                "--load-best-model", 
+                "--model", "arch_170",
+                "--progress-bar",
+                // "--norm", "L2", "--epsilon", "0.5"
             ]
         }
     ]

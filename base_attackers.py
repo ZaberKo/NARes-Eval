@@ -1,5 +1,5 @@
 import torchattacks
-from attacks import CWLinf
+from attacks import PGD_CWLinf, PGD_CWL2
 
 
 class Evaluator():
@@ -12,14 +12,17 @@ class Evaluator():
         self._fgsm_attacker = torchattacks.FGSM(self.model, eps=self.eps)
         self._pgd_attacker = torchattacks.PGD(
             self.model, eps=self.eps, alpha=self.step_size, steps=pgd_steps)
-        self._cw_attacker = CWLinf(
+        self._cw_attacker = PGD_CWLinf(
             self.model, eps=self.eps, kappa=0, lr=self.step_size, steps=cw_steps)
 
         # L2 attackers
         self._pgdl2_attacker = torchattacks.PGDL2(
             self.model, eps=self.eps, alpha=self.step_size, steps=pgdl2_steps)
-        self._cwl2_attacker = torchattacks.CW(
-            self.model, c=1, kappa=0, lr=self.step_size, steps=cwl2_steps)
+        # self._cwl2_attacker = torchattacks.CW(
+        #     self.model, c=1, kappa=0, lr=self.step_size, steps=cwl2_steps)
+        self._cwl2_attacker = PGD_CWL2(
+            self.model, eps=self.eps, kappa=0, lr=self.step_size, steps=cwl2_steps)
+
 
         self._predict_clean = None
 
