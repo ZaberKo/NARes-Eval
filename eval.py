@@ -27,21 +27,28 @@ def setup_args():
     parser.add_argument('--model', type=str, default="arch_001")
     parser.add_argument('--model-path', type=str, default='configs')
     parser.add_argument('--attack-choice', type=str, default='Base',
-                        choices=['Base', "AA"], help="Base: FGSM, PGD, CW; Or, AA")
+                        choices=['Base', "AA"], help="Base: (FGSM) + PGD + CW; AA")
     parser.add_argument('--norm', type=str, default='Linf',
                         choices=["L2", "Linf"])
     parser.add_argument('--load-best-model',
                         action='store_true', default=False)
-    parser.add_argument('--epsilon', default=8,
-                        type=float, help='perturbation')
-    parser.add_argument('--step_size', default=0.8, type=float,
-                        help='perturb step size, for pgd etc., step size is 10x smaller than epsilon')
+    # parser.add_argument('--epsilon', default=8,
+    #                     type=float, help='perturbation')
+    # parser.add_argument('--step_size', default=0.8, type=float,
+    #                     help='perturb step size, for pgd etc., step size is 10x smaller than epsilon')
     # Autoattack augments
     parser.add_argument('--aa-type', type=str, default='Standard', choices=["Compact", "Standard"],
                         help='Compact: only includes two attacker which is almost closed to the Standard version in most case, and it is cheaper; Standard: Common used')
     parser.add_argument('--progress-bar', action='store_true')
 
     args = parser.parse_args()
+
+    if args.norm == 'Linf':
+        args.epsilon = 8/255
+        args.step_size = 0.8/255
+    else:
+        args.epsilon = 0.5
+        args.step_size = 0.8/255
 
     return args
 
@@ -235,9 +242,9 @@ def main():
 
 if __name__ == '__main__':
     args = setup_args()
-    if args.epsilon > 1:
-        args.epsilon = args.epsilon / 255
-        args.step_size = args.step_size / 255
+    # if args.epsilon > 1:
+    #     args.epsilon = args.epsilon / 255
+    #     args.step_size = args.step_size / 255
 
     # get the corresponding directory
     model_path = Path(args.model_path)/args.model
