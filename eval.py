@@ -253,7 +253,7 @@ if __name__ == '__main__':
     if args.log_path is None:
         log_path = model_path
     else:
-        log_path = Path(args.log_path)
+        log_path = Path(args.log_path)/args.model
         if not log_path.exists():
             log_path.mkdir(parents=True, exist_ok=True)
 
