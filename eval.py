@@ -26,6 +26,7 @@ def setup_args():
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--model', type=str, default="arch_001")
     parser.add_argument('--model-path', type=str, default='configs')
+    parser.add_argument('--log-path', type=str)
     parser.add_argument('--attack-choice', type=str, default='Base',
                         choices=['Base', "AA"], help="Base: (FGSM) + PGD + CW; AA")
     parser.add_argument('--norm', type=str, default='Linf',
@@ -249,6 +250,14 @@ if __name__ == '__main__':
     # get the corresponding directory
     model_path = Path(args.model_path)/args.model
 
+    if args.log_path is None:
+        log_path = model_path
+    else:
+        log_path = Path(args.log_path)
+        if not log_path.exists():
+            log_path.mkdir(parents=True, exist_ok=True)
+
+
     checkpoint_path = model_path/'checkpoints'
 
     if args.load_best_model:
@@ -264,7 +273,7 @@ if __name__ == '__main__':
     config.dataset.eval_batch_size = 100
 
     # init logger
-    log_file_path = model_path / \
+    log_file_path = log_path / \
         f'{args.model}_eval_{args.norm}_{args.attack_choice}.log'
     logger = util.setup_logger(name=args.model, 
                                log_file=str(log_file_path),

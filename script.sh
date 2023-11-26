@@ -10,3 +10,8 @@ docker run -it --gpus=all \
 python ./eval.py --model-path ./models_home --load-best-model --model arch_170 --seed 0 --progress-bar
 
 python ./eval.py --model-path ./models_home --load-best-model --model arch_170 --seed 0 --norm L2 --progress-bar
+
+
+while IFS= read -r $arch_id; do
+    python ./eval.py --model-path ./models_home --log-path ./attack_log --load-best-model --model arch_$arch_id --seed 0
+done < ./complete.txt
