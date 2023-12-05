@@ -266,15 +266,20 @@ if __name__ == '__main__':
         model_name = f'{args.model}.pth'
     checkpoint_file = checkpoint_path/model_name
 
-    config_file = model_path/f"{args.model}.yaml"
+    config_file = model_path/f'{args.model}.yaml'
     config = mlconfig.load(str(config_file))
     # Must set to False, since we want to evaluate on test instead of val set
     config.dataset.valset = False
     config.dataset.eval_batch_size = 100
 
     # init logger
+    if args.attack_choice == 'AA' and args.aa_type != 'Standard':
+        attack_name = f'AA-{args.aa_type}'
+    else:
+        attack_name = args.attack_choice
+            
     log_file_path = log_path / \
-        f'{args.model}_eval_{args.norm}_{args.attack_choice}.log'
+        f'{args.model}_eval_{args.norm}_{attack_name}.log'
     logger = util.setup_logger(name=args.model, 
                                log_file=str(log_file_path),
                                console=not args.progress_bar)
