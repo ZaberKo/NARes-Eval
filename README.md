@@ -1,7 +1,31 @@
 # r-nas-attack
 
-# To-Do
-1. 所有的评估接口测试一遍，看看是否还有什么技术问题。
-2. 确认L2情况下，其他人设置epsilon和step size是多少。
-3. 代码的一致性：主要是看本评价代码出来的结果是否跟真实数据可比。
-4. 
+## Evaluation
+
+Examples:
+
+Put model weights and config file to `models_home`:
+
+```
+models_home
+└── arch_170
+    ├── arch_170.yaml
+    └── checkpoints
+        └── arch_170_best.pth
+```
+
+```shell
+model=arch_11451
+
+#Base Linf
+python ./eval.py --model-path ./models_home --log-path ./attack_log --load-best-model --model ${model} --seed 0
+
+#Base L2
+python ./eval.py --model-path ./models_home --log-path ./attack_log --load-best-model --model ${model} --seed 0 --norm L2
+
+#AA-Linf
+python ./eval.py --model-path ./models_home --log-path ./attack_log --load-best-model --model ${model} --seed 0 --attack-choice AA --aa-type Compact
+
+#AA-L2
+python ./eval.py --model-path ./models_home --log-path ./attack_log --load-best-model --model ${model} --seed 0 --attack-choice AA --aa-type Compact --norm L2
+```
