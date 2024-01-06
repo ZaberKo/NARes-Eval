@@ -55,7 +55,7 @@ def setup_args():
 
 
 def get_ratio(metric: util.AverageMeter):
-    return f'{int(metric.sum)}/{int(metric.count)}'
+    return f'{round(metric.sum)}/{round(metric.count)}'
 
 
 def l2_eval(data_loader, model, evaluator, progress_bar=False):
