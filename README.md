@@ -29,3 +29,12 @@ python ./eval.py --model-path ./models_home --log-path ./attack_log --load-best-
 #AA-L2
 python ./eval.py --model-path ./models_home --log-path ./attack_log --load-best-model --model ${model} --seed 0 --attack-choice AA --aa-type Compact --norm L2
 ```
+
+Evalute models by a file with arch_id list:
+```shell
+# run on GPU0 with Base Linf
+./run.sh 0 arch_list.txt base Linf
+
+# run on GPU3 with AA Linf
+./run.sh 3 arch_list.txt aa Linf
+```
