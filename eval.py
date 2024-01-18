@@ -25,7 +25,7 @@ def setup_args():
         description='Adversarial Attack Evaluate: Linf/L2-version of FGSM, PGD20, CW40, AutoAttack with epsilon@8/255;')
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--model', type=str, default="arch_001")
-    parser.add_argument('--model-path', type=str, default='configs')
+    parser.add_argument('--model-path', type=str, default='models_home')
     parser.add_argument('--log-path', type=str)
     parser.add_argument('--attack-choice', type=str, default='Base',
                         choices=['Base', "AA"], help="Base: (FGSM) + PGD + CW; AA")
