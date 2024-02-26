@@ -170,3 +170,49 @@ class CIFAR101_test(Dataset):
         return self.len
 
 
+class CIFAR10C(datasets.VisionDataset):
+    CORRUPTIONS = [
+        'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
+        'glass_blur', 'motion_blur', 'zoom_blur', 'snow', 'frost', 'fog',
+        'brightness', 'contrast', 'elastic_transform', 'pixelate',
+        'jpeg_compression'
+    ]
+    
+    def __init__(self, root :str, corruption :str,
+                 transform=None, target_transform=None):
+        
+        super(CIFAR10C, self).__init__(root, transform=transform,
+                                      target_transform=target_transform)
+        
+        assert corruption in self.CORRUPTIONS
+
+        data_path = os.path.join(root, corruption + '.npy')
+        target_path = os.path.join(root, 'labels.npy')
+        
+        self.data = np.load(data_path)
+        self.targets = np.load(target_path).astype(np.int64)
+
+    def __getitem__(self, index: int):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (image, target) where target is index of the target class.
+        """
+        img, target = self.data[index], self.targets[index]
+
+        # doing this so that it is consistent with all other datasets
+        # to return a PIL Image
+        img = Image.fromarray(img)
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return img, target
+
+    def __len__(self) -> int:
+        return len(self.data)

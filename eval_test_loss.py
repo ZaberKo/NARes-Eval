@@ -116,13 +116,8 @@ if __name__ == '__main__':
     config.dataset.eval_batch_size = 100
 
     # init logger
-    if args.attack_choice == 'AA' and args.aa_type != 'Standard':
-        attack_name = f'AA-{args.aa_type}'
-    else:
-        attack_name = args.attack_choice
-            
     log_file_path = log_path / \
-        f'{args.model}_eval_{args.norm}_{attack_name}.log'
+        f'{args.model}_eval_test-loss.log'
     logger = util.setup_logger(name=args.model, 
                                log_file=str(log_file_path),
                                console=not args.progress_bar)
@@ -148,6 +143,6 @@ if __name__ == '__main__':
     start = time.time()
     main()
     end = time.time()
-    eval_time = (end - start) / 86400
-    payload = f"Running Cost {eval_time:4f} Days"
+    eval_time = (end - start)
+    payload = f"Running Cost {eval_time:4f} Seconds"
     logger.info(payload)

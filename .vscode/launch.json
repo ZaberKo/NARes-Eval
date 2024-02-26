@@ -18,6 +18,21 @@
                 "--progress-bar",
                 // "--norm", "L2", "--epsilon", "0.5"
             ]
+        },
+        {
+            "name": "Eval-Corrupt",
+            "type": "python",
+            "request": "launch",
+            "program": "eval_corruption.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--model-path", "./models_home", 
+                "--load-best-model", 
+                "--model", "arch_170",
+                "--progress-bar",
+                // "--norm", "L2", "--epsilon", "0.5"
+            ]
         }
     ]
 }

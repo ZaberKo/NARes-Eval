@@ -1,6 +1,6 @@
 # r-nas-attack
 
-## Evaluation
+## Attack Robustness Evaluation
 
 Examples:
 
@@ -37,4 +37,17 @@ Evalute models by a file with arch_id list:
 
 # run on GPU3 with AA Linf
 ./run.sh 3 arch_list.txt aa Linf
+```
+## Corruption Robustness Evaluation
+
+Put the CIFAR-10-C data to `datasets/cifar10c`
+
+```shell
+python ./eval_corruption.py --model-path ./models_home --log-path ./attack_log --load-best-model --model arch_11451
+```
+
+## Get Test Loss
+
+```shell
+python ./eval_test_loss.py --model-path ./models_home --log-path ./attack_log --load-best-model --model arch_11451
 ```

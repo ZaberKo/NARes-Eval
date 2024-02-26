@@ -68,7 +68,7 @@ def l2_eval(data_loader, model, evaluator, progress_bar=False):
         _data_loader = data_loader["test_dataset"]
 
     for i, (images, labels) in enumerate(_data_loader):
-        images, labels = images.to(device), labels.to(device)
+        images, labels = images.to(args.device), labels.to(args.device)
         bs = images.size(0)
 
         predict_clean, natural_acc = evaluator.clean_acc(images, labels)
@@ -114,7 +114,7 @@ def linf_eval(data_loader, model, evaluator, progress_bar=False):
         _data_loader = data_loader["test_dataset"]
 
     for i, (images, labels) in enumerate(_data_loader):
-        images, labels = images.to(device), labels.to(device)
+        images, labels = images.to(args.device), labels.to(args.device)
         bs = images.size(0)
 
         predict_clean, natural_acc = evaluator.clean_acc(images, labels)
