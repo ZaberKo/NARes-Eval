@@ -100,7 +100,7 @@ def l2_eval(data_loader, model, evaluator, progress_bar=False):
         f'PGD with 20 steps Correct Count: {get_ratio(metrics["pgd_acc"])}, Acc: {metrics["pgd_acc"].percent:.2f}, Stable: {metrics["pgd_stable"].percent:.2f} LIP: {metrics["pgd_lip"].avg:.4f}'
     )
     logger.info(
-        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["natural_acc"].percent:.2f}'
+        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["cw_stable"].percent:.2f}'
     )
     return metrics
 
@@ -155,7 +155,7 @@ def linf_eval(data_loader, model, evaluator, progress_bar=False):
         f'PGD with 20 steps Correct Count: {get_ratio(metrics["pgd_acc"])}, Acc: {metrics["pgd_acc"].percent:.2f}, Stable: {metrics["pgd_stable"].percent:.2f} LIP: {metrics["pgd_lip"].avg:.4f}'
     )
     logger.info(
-        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["natural_acc"].percent:.2f}'
+        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["cw_stable"].percent:.2f}'
     )
 
     return metrics
