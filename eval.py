@@ -71,7 +71,9 @@ def l2_eval(data_loader, model, evaluator, progress_bar=False):
         images, labels = images.to(args.device), labels.to(args.device)
         bs = images.size(0)
 
-        predict_clean, natural_acc = evaluator.clean_acc(images, labels)
+        test_loss, predict_clean, natural_acc = evaluator.clean_acc(
+            images, labels)
+        metrics['test_loss'].update(test_loss, n=bs)
         metrics['natural_acc'].update(natural_acc, n=bs)
 
         # L2-PGD attacker with 20 steps
@@ -83,10 +85,12 @@ def l2_eval(data_loader, model, evaluator, progress_bar=False):
         metrics['pgd_lip'].update(local_lip, n=bs)
 
         # L2-CW attacker with 40 steps
-        acc_cw, stable_cw, _ = evaluator.l2cw_whitebox(
+        acc_cw, stable_cw, adv_imgs_cw = evaluator.l2cw_whitebox(
             images, labels, predict_clean)
         metrics['cw_acc'].update(acc_cw, n=bs)
         metrics['cw_stable'].update(stable_cw, n=bs)
+        local_lip = util.local_lip(model, images, adv_imgs_cw).item()
+        metrics['cw_lip'].update(local_lip, n=bs)
 
         payload = f'Nature Acc: {metrics["natural_acc"].percent:.2f} PGD Acc: {metrics["pgd_acc"].percent:.2f} PGD LIP: {local_lip:.4f} CW Acc: {metrics["cw_acc"].percent:.2f}'
         logger.info(payload)
@@ -94,13 +98,13 @@ def l2_eval(data_loader, model, evaluator, progress_bar=False):
             _data_loader.set_description(payload)
 
     logger.info(
-        f'Natural Correct Count: {get_ratio(metrics["natural_acc"])}, Acc: {metrics["natural_acc"].percent:.2f}'
+        f'Natural Correct Count: {get_ratio(metrics["natural_acc"])}, Acc: {metrics["natural_acc"].percent:.2f} Test Loss: {metrics["test_loss"].avg:.4f}'
     )
     logger.info(
         f'PGD with 20 steps Correct Count: {get_ratio(metrics["pgd_acc"])}, Acc: {metrics["pgd_acc"].percent:.2f}, Stable: {metrics["pgd_stable"].percent:.2f} LIP: {metrics["pgd_lip"].avg:.4f}'
     )
     logger.info(
-        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["cw_stable"].percent:.2f}'
+        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["cw_stable"].percent:.2f} LIP: {metrics["cw_lip"].avg:.4f}'
     )
     return metrics
 
@@ -117,7 +121,9 @@ def linf_eval(data_loader, model, evaluator, progress_bar=False):
         images, labels = images.to(args.device), labels.to(args.device)
         bs = images.size(0)
 
-        predict_clean, natural_acc = evaluator.clean_acc(images, labels)
+        test_loss, predict_clean, natural_acc = evaluator.clean_acc(
+            images, labels)
+        metrics['test_loss'].update(test_loss, n=bs)
         metrics['natural_acc'].update(natural_acc, n=bs)
 
         # Linf-FGSM with 1 step. For FGSM, where only one step, usually, step size = epsilon
@@ -135,10 +141,12 @@ def linf_eval(data_loader, model, evaluator, progress_bar=False):
         metrics['pgd_lip'].update(local_lip, n=bs)
 
         # Linf-CW attacker with 40 steps
-        acc_cw, stable_cw, _ = evaluator.cw_whitebox(
+        acc_cw, stable_cw, adv_imgs_cw = evaluator.cw_whitebox(
             images, labels, predict_clean)
         metrics['cw_acc'].update(acc_cw, n=bs)
         metrics['cw_stable'].update(stable_cw, n=bs)
+        local_lip = util.local_lip(model, images, adv_imgs_cw).item()
+        metrics['cw_lip'].update(local_lip, n=bs)
 
         payload = f'Nature Acc: {metrics["natural_acc"].percent:.2f} FGSM Acc: {metrics["fgsm_acc"].percent:.2f} PGD Acc: {metrics["pgd_acc"].percent:.2f} PGD LIP: {local_lip:.4f} CW Acc: {metrics["cw_acc"].percent:.2f}'
         logger.info(payload)
@@ -146,7 +154,7 @@ def linf_eval(data_loader, model, evaluator, progress_bar=False):
             _data_loader.set_description(payload)
 
     logger.info(
-        f'Natural Correct Count: {get_ratio(metrics["natural_acc"])}, Acc: {metrics["natural_acc"].percent:.2f}'
+        f'Natural Correct Count: {get_ratio(metrics["natural_acc"])}, Acc: {metrics["natural_acc"].percent:.2f} Test Loss: {metrics["test_loss"].avg:.4f}'
     )
     logger.info(
         f'FGSM with 1 step Correct Count: {get_ratio(metrics["fgsm_acc"])}, Acc: {metrics["fgsm_acc"].percent:.2f}, Stable: {metrics["fgsm_stable"].percent:.2f}'
@@ -155,7 +163,7 @@ def linf_eval(data_loader, model, evaluator, progress_bar=False):
         f'PGD with 20 steps Correct Count: {get_ratio(metrics["pgd_acc"])}, Acc: {metrics["pgd_acc"].percent:.2f}, Stable: {metrics["pgd_stable"].percent:.2f} LIP: {metrics["pgd_lip"].avg:.4f}'
     )
     logger.info(
-        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["cw_stable"].percent:.2f}'
+        f'CW with 40 steps Correct Count: {get_ratio(metrics["cw_acc"])}, Acc: {metrics["cw_acc"].percent:.2f}, Stable: {metrics["cw_stable"].percent:.2f} LIP: {metrics["cw_lip"].avg:.4f}'
     )
 
     return metrics
@@ -257,7 +265,6 @@ if __name__ == '__main__':
         if not log_path.exists():
             log_path.mkdir(parents=True, exist_ok=True)
 
-
     checkpoint_path = model_path/'checkpoints'
 
     if args.load_best_model:
@@ -277,10 +284,10 @@ if __name__ == '__main__':
         attack_name = f'AA-{args.aa_type}'
     else:
         attack_name = args.attack_choice
-            
+
     log_file_path = log_path / \
         f'{args.model}_eval_{args.norm}_{attack_name}.log'
-    logger = util.setup_logger(name=args.model, 
+    logger = util.setup_logger(name=args.model,
                                log_file=str(log_file_path),
                                console=not args.progress_bar)
 

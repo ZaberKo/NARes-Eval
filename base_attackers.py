@@ -1,6 +1,6 @@
 import torchattacks
 from attacks import PGD_CWLinf, PGD_CWL2
-
+from torch.nn import functional as F
 
 class Evaluator():
     def __init__(self, model, eps=8/255, step_size=0.8/255, pgd_steps=20, cw_steps=40, pgdl2_steps=20, cwl2_steps=40):
@@ -46,10 +46,14 @@ class Evaluator():
         return acc, stable
 
     def clean_acc(self, imgs, labels):
-        predict_clean = self.model(imgs).max(1)[1].detach()
+        logits = self.model(imgs)
+        loss = F.cross_entropy(logits, labels).item()
+
+        predict_clean =logits.max(1)[1].detach()
+        
         acc = (predict_clean == labels.data).float().mean().item()
 
-        return predict_clean, acc
+        return loss, predict_clean, acc
 
     def fgsm_whitebox(self, imgs, labels, predict_clean=None):
         adv_img = self._fgsm_attacker(imgs, labels)
