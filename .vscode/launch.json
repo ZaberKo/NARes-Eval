@@ -5,31 +5,52 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Eval_TestLoss",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "eval_test_loss.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--model-path",
+                "./models_home",
+                "--load-best-model",
+                "--model",
+                "arch_170",
+                "--progress-bar",
+                // "--norm", "L2", "--epsilon", "0.5"
+            ]
+        },
+        {
             "name": "Eval",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "eval.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--model-path", "./models_home", 
-                "--load-best-model", 
-                "--model", "arch_170",
+                "--model-path",
+                "./models_home",
+                "--load-best-model",
+                "--model",
+                "arch_170",
                 "--progress-bar",
                 // "--norm", "L2", "--epsilon", "0.5"
             ]
         },
         {
             "name": "Eval-Corrupt",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "eval_corruption.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--model-path", "./models_home", 
-                "--load-best-model", 
-                "--model", "arch_170",
+                "--model-path",
+                "./models_home",
+                "--load-best-model",
+                "--model",
+                "arch_170",
                 "--progress-bar",
                 // "--norm", "L2", "--epsilon", "0.5"
             ]
