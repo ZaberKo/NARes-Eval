@@ -172,10 +172,7 @@ class CIFAR101_test(Dataset):
 
 class CIFAR10C(datasets.VisionDataset):
     CORRUPTIONS = [
-        'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
-        'glass_blur', 'motion_blur', 'zoom_blur', 'snow', 'frost', 'fog',
-        'brightness', 'contrast', 'elastic_transform', 'pixelate',
-        'jpeg_compression'
+        'brightness', 'contrast', 'defocus_blur', 'elastic_transform', 'fog', 'frost', 'gaussian_blur', 'gaussian_noise', 'glass_blur', 'impulse_noise', 'jpeg_compression', 'motion_blur', 'pixelate', 'saturate', 'shot_noise', 'snow', 'spatter', 'speckle_noise', 'zoom_blur'
     ]
     
     def __init__(self, root :str, corruption :str,
@@ -189,8 +186,18 @@ class CIFAR10C(datasets.VisionDataset):
         data_path = os.path.join(root, corruption + '.npy')
         target_path = os.path.join(root, 'labels.npy')
         
-        self.data = np.load(data_path)
-        self.targets = np.load(target_path).astype(np.int64)
+        self.corruption = corruption
+        self.full_data = np.load(data_path)
+        self.full_targets = np.load(target_path).astype(np.int64)
+
+        # by default, use the full dataset
+        self.data = self.full_data
+        self.targets = self.full_targets
+
+    def set_level(self, level :int):
+        i = level-1
+        self.data = self.full_data[i*10000:(i+1)*10000]
+        self.targets = self.full_targets[i*10000:(i+1)*10000]
 
     def __getitem__(self, index: int):
         """

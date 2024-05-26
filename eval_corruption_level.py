@@ -9,6 +9,7 @@ from pathlib import Path
 from collections import defaultdict
 import tqdm
 import pickle
+import gc
 
 import torch.nn.functional as F
 from torchvision import datasets, transforms
@@ -76,19 +77,23 @@ def test_c(model, base_path):
             corruption=cname,
             transform=test_transform,
         )
+        for level in range(1, 6):
+            test_data.set_level(level)
+            test_loader = torch.utils.data.DataLoader(
+                test_data,
+                batch_size=args.batch_size,
+                shuffle=False,
+                num_workers=args.num_workers,
+                pin_memory=True)
 
-        test_loader = torch.utils.data.DataLoader(
-            test_data,
-            batch_size=args.batch_size,
-            shuffle=False,
-            num_workers=args.num_workers,
-            pin_memory=True)
+            metrics = test(model, test_loader, args.progress_bar)
+            logger.info(
+                f"{cname} (level={level}): Loss: {metrics['test_loss'].avg:.4f}, Acc: {metrics['test_acc'].percent:.2f}")
 
-        metrics = test(model, test_loader, args.progress_bar)
-        logger.info(
-            f"{cname}: Loss: {metrics['test_loss'].avg:.4f}, Acc: {metrics['test_acc'].percent:.4f}")
+            corruption_metrics[f'{cname}_{level}'] = metrics
 
-        corruption_metrics[cname] = metrics
+        gc.collect()
+        torch.cuda.empty_cache()
 
     avg_acc = np.mean(
         [metrics['test_acc'].percent for metrics in corruption_metrics.values()])
