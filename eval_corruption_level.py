@@ -141,7 +141,7 @@ if __name__ == '__main__':
     config_file = model_path/f'{args.model}.yaml'
     config = mlconfig.load(str(config_file))
 
-    log_file_path = log_path/f'{args.model}_eval_cifar10c.log'
+    log_file_path = log_path/f'{args.model}_eval_cifar10c_level.log'
     logger = util.setup_logger(name=args.model,
                                log_file=str(log_file_path),
                                console=not args.progress_bar)
