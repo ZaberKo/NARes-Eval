@@ -17,7 +17,7 @@ while IFS= read -r arch_id; do
         (set +x; CUDA_VISIBLE_DEVICES=${GPU} python ./eval.py --model-path ./models_home --log-path ./attack_log --load-best-model --model ${model} --seed 0  --norm ${norm} --attack-choice AA --aa-type Compact)
     elif [[ ${attack_type} == "corruption" ]]
     then
-        (set +x; CUDA_VISIBLE_DEVICES=${GPU} python ./eval_corruption.py --model-path ./models_home --log-path ./attack_log --load-best-model --model ${model} --seed 0)
+        (set +x; CUDA_VISIBLE_DEVICES=${GPU} python ./eval_corruption_level.py --model-path ./models_home --log-path ./attack_log --load-best-model --model ${model} --seed 0)
     else
         echo "Invalid attack type: ${attack_type}"
     fi
