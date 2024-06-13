@@ -53,3 +53,11 @@ python ./eval_corruption_level.py --model-path ./models_home --log-path ./attack
 ```shell
 python ./eval_test_loss.py --model-path ./models_home --log-path ./attack_log --load-best-model --model arch_11451
 ``` -->
+
+# Acknowledgement
+
+* [torchattacks](https://github.com/Harry24k/adversarial-attacks-pytorch)
+
+* [auto-attack](https://github.com/fra31/auto-attack)
+
+* [CIFAR-10-C](https://github.com/hendrycks/robustness)
