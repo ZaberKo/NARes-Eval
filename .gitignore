@@ -253,5 +253,7 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,python,visualstudiocode
 
-models_home/
-datasets/
+!/models_home/
+!/datasets/
+/models_home/*
+/datasets/*
