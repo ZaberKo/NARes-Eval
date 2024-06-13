@@ -257,3 +257,4 @@ $RECYCLE.BIN/
 !/datasets/
 /models_home/*
 /datasets/*
+/debug/

@@ -4,8 +4,9 @@ set -eu
 GPU=${1:-0}
 arch_list=${2:-arch_list.txt}
 attack_type=${3:-base}
-seed=${4:-0}
-norm=${5:-Linf}
+norm=${4:-Linf}
+seed=${5:-0}
+
 
 
 while IFS= read -r arch_id; do

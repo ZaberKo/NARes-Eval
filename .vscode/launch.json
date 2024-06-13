@@ -42,7 +42,7 @@
             "name": "Eval-Corrupt",
             "type": "debugpy",
             "request": "launch",
-            "program": "eval_corruption.py",
+            "program": "eval_corruption_level.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
@@ -51,8 +51,7 @@
                 "--load-best-model",
                 "--model",
                 "arch_170",
-                "--progress-bar",
-                // "--norm", "L2", "--epsilon", "0.5"
+                // "--progress-bar",
             ]
         }
     ]
