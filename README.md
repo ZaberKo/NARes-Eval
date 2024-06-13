@@ -4,9 +4,16 @@ The Evaluation code of [NARes](https://github.com/zhichao-lu/arch-dataset-adv-ro
 
 ## Attack Robustness Evaluation
 
-Examples:
+Put dataset (CIFAR-10, CIFAR-10-C) to `datasets/`
 
-Put model weights and config file to `models_home`:
+```
+datasets
+├── cifar10
+│   └── cifar-10-batches-py
+└── cifar10c
+```
+
+Put model weights and config file to `models_home/`:
 
 ```
 models_home
