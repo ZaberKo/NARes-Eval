@@ -1,0 +1,6 @@
+numpy
+torch
+torchvision
+mlconfig<0.2.0
+torchprofile
+torchattacks

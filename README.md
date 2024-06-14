@@ -2,26 +2,30 @@
 
 The Evaluation code of [**NARes**](https://github.com/zhichao-lu/arch-dataset-adv-robustness)
 
+## Preparation
+
+1. Put dataset (CIFAR-10, CIFAR-10-C) to `datasets/`:
+
+    ```
+    datasets
+    ├── cifar10
+    │   └── cifar-10-batches-py
+    └── cifar10c
+    ```
+
+2. Put model weights and config file to `models_home/`:
+
+    ```
+    models_home
+    └── arch_170
+        ├── arch_170.yaml
+        └── checkpoints
+            └── arch_170_best.pth
+    ```
+
+3. Install packages from `requirements.txt`
+
 ## Attack Robustness Evaluation
-
-Put dataset (CIFAR-10, CIFAR-10-C) to `datasets/`:
-
-```
-datasets
-├── cifar10
-│   └── cifar-10-batches-py
-└── cifar10c
-```
-
-Put model weights and config file to `models_home/`:
-
-```
-models_home
-└── arch_170
-    ├── arch_170.yaml
-    └── checkpoints
-        └── arch_170_best.pth
-```
 
 ```shell
 model=arch_2333
